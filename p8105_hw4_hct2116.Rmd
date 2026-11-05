@@ -1,0 +1,152 @@
+---
+title: "Instacart Shopping Patterns"
+author: "Haoyun Tong"
+date: "2026-11-04"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(p8105.datasets)
+library(plotly)
+
+data("instacart")
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+hourly_orders =
+  instacart %>%
+  distinct(order_id, order_hour_of_day) %>%
+  count(order_hour_of_day, name = "orders")
+
+department_summary =
+  instacart %>%
+  group_by(department) %>%
+  summarise(
+    products = n(),
+    reorder_rate = mean(reordered, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(products))
+
+top_departments = department_summary %>% slice_max(products, n = 12) %>%
+  mutate(department = fct_reorder(department, products))
+
+reorder_by_cart_position =
+  instacart %>%
+  filter(add_to_cart_order <= 20) %>%
+  group_by(add_to_cart_order) %>%
+  summarise(reorder_rate = mean(reordered, na.rm = TRUE), .groups = "drop")
+
+department_scatter =
+  instacart %>%
+  group_by(department) %>%
+  summarise(
+    products = n(),
+    reorder_rate = mean(reordered, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+Row {data-height=55}
+-------------------------------------
+
+### Orders by Hour
+
+```{r}
+plot_ly(
+  hourly_orders,
+  x = ~order_hour_of_day,
+  y = ~orders,
+  type = "scatter",
+  mode = "lines+markers",
+  line = list(color = "#2C7FB8", width = 3),
+  marker = list(size = 7),
+  hovertemplate = "Hour: %{x}:00<br>Orders: %{y:,}<extra></extra>"
+) %>%
+  layout(
+    xaxis = list(title = "Hour of day", dtick = 2),
+    yaxis = list(title = "Number of orders", separatethousands = TRUE),
+    margin = list(b = 55, l = 65, t = 15)
+  )
+```
+
+Row {data-height=45}
+-------------------------------------
+
+### Product Rows by Department
+
+```{r}
+plot_ly(
+  top_departments,
+  x = ~products,
+  y = ~department,
+  type = "bar",
+  orientation = "h",
+  marker = list(color = "#41AB5D"),
+  hovertemplate = "%{y}<br>Product rows: %{x:,}<extra></extra>"
+) %>%
+  layout(
+    xaxis = list(title = "Product rows", separatethousands = TRUE),
+    yaxis = list(title = "", categoryorder = "array",
+                 categoryarray = levels(top_departments$department)),
+    margin = list(l = 110, b = 55, t = 15)
+  )
+```
+
+### Reorder Rate by Cart Position
+
+```{r}
+plot_ly(
+  reorder_by_cart_position,
+  x = ~add_to_cart_order,
+  y = ~reorder_rate,
+  type = "scatter",
+  mode = "lines+markers",
+  line = list(color = "#D95F0E", width = 3),
+  marker = list(size = 7),
+  hovertemplate = "Cart position: %{x}<br>Reorder rate: %{y:.1%}<extra></extra>"
+) %>%
+  layout(
+    xaxis = list(title = "Position added to cart", dtick = 2),
+    yaxis = list(title = "Reorder rate", tickformat = ".0%",
+                 range = c(0, 1)),
+    margin = list(b = 55, l = 65, t = 15)
+  )
+```
+
+Row {data-height=45}
+-------------------------------------
+
+### Department Size and Reorder Rate
+
+```{r}
+plot_ly(
+  department_scatter,
+  x = ~products,
+  y = ~reorder_rate,
+  type = "scatter",
+  mode = "markers",
+  color = ~department,
+  size = ~products,
+  sizes = c(8, 28),
+  text = ~department,
+  hovertemplate = paste(
+    "%{text}<br>Product rows: %{x:,}",
+    "<br>Reorder rate: %{y:.1%}<extra></extra>"
+  ),
+  showlegend = FALSE
+) %>%
+  layout(
+    xaxis = list(title = "Product rows", separatethousands = TRUE),
+    yaxis = list(title = "Reorder rate", tickformat = ".0%"),
+    margin = list(b = 55, l = 65, t = 15)
+  )
+```
+
+### About this dashboard
+
+Each row in the class Instacart dataset is a product in a user's order. The line charts summarize when orders occur and how reorder frequency changes with cart position. The bar chart compares product-row volume across the 12 largest departments, and the scatterplot compares department size with reorder rate. These data are a cleaned training subset and are not a random sample of all Instacart purchases.
